@@ -25,6 +25,9 @@ let menuTimeout = null
 // Add near the top of the script
 const modelLoadError = ref(false)
 
+// Add device detection
+const isMobile = ref(window.innerWidth <= 768)
+
 function initThreeJS() {
   // Create scene
   scene = new THREE.Scene()
@@ -114,7 +117,10 @@ function handleMouseMove(event) {
 }
 
 onMounted(() => {
-  initThreeJS()
+  window.addEventListener('resize', handleResize)
+  if (!isMobile.value) {
+    initThreeJS()
+  }
   startIntroSequence()
 
   // Add click outside listener
@@ -345,10 +351,15 @@ function handleTouchStart(event) {
   if (!skull) return
   handleMouseMove(event.touches[0])
 }
+
+// Update window resize handling
+function handleResize() {
+  isMobile.value = window.innerWidth <= 768
+}
 </script>
 
 <template>
-  <div class="hero" @mousemove="handleMouseMove">
+  <div class="hero" @mousemove="!isMobile && handleMouseMove">
     <div v-if="showIntro" class="intro-overlay">
       <div class="progress-arc top"></div>
       <div class="intro-text">
@@ -377,36 +388,29 @@ function handleTouchStart(event) {
       </nav>
     </header>
 
-    <div class="circuit-container"></div>
-    <div class="skull-container">
-      <!-- Three.js skull renders here -->
-    </div>
-
-    <!-- Add content sections -->
-    <div class="content-grid">
-      <div class="content-section section-1">
-        <h2>Create</h2>
-        <p>Build something extraordinary</p>
+    <!-- Only show skull on desktop -->
+    <template v-if="!isMobile">
+      <div class="circuit-container"></div>
+      <div class="skull-container">
+        <!-- Three.js skull renders here -->
       </div>
+    </template>
 
-      <div class="content-section section-2">
-        <h2>Innovate</h2>
-        <p>Push the boundaries</p>
-      </div>
-
-      <div class="content-section section-3">
-        <h2>Transform</h2>
-        <p>Change the game</p>
-      </div>
-
-      <div class="content-section section-4">
-        <h2>Evolve</h2>
-        <p>Stay ahead of tomorrow</p>
+    <!-- Update content grid for mobile -->
+    <div class="content-grid" :class="{ mobile: isMobile }">
+      <div
+        v-for="(section, index) in sections"
+        :key="section.title"
+        class="content-section"
+        :class="[`section-${index + 1}`, { mobile: isMobile }]"
+      >
+        <h2>{{ section.title }}</h2>
+        <p>{{ section.description }}</p>
       </div>
     </div>
 
-    <!-- Add beam container -->
-    <div class="beam-container"></div>
+    <!-- Only show beam container on desktop -->
+    <div v-if="!isMobile" class="beam-container"></div>
   </div>
 </template>
 
@@ -1114,6 +1118,57 @@ body {
 
 /* Add responsive styles */
 @media (max-width: 768px) {
+  .content-grid.mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    overflow-y: auto;
+    height: 100vh;
+    padding-top: 5rem;
+    background: radial-gradient(
+      circle at center,
+      rgba(159, 122, 234, 0.2) 0%,
+      rgba(0, 0, 0, 1) 70%
+    );
+  }
+
+  .content-section.mobile {
+    position: relative;
+    width: 90%;
+    max-width: 350px;
+    margin: 1rem 0;
+    transform: translateY(20px);
+    opacity: 0;
+    animation: slideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    backdrop-filter: blur(8px);
+    background: rgba(107, 70, 193, 0.1);
+    border: 1px solid rgba(159, 122, 234, 0.3);
+  }
+
+  .content-section.mobile.show {
+    animation-delay: calc(var(--index) * 0.2s);
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Add mobile-specific hover effects */
+  .content-section.mobile:active {
+    transform: scale(0.98);
+    background: rgba(107, 70, 193, 0.2);
+    border-color: var(--light-purple);
+    transition: all 0.3s ease;
+  }
+
   /* Adjust skull container for mobile */
   .skull-container {
     width: 100vw;
