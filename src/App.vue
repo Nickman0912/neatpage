@@ -37,58 +37,68 @@ const sections = [
 ]
 
 function initThreeJS() {
-  // Create scene
   scene = new THREE.Scene()
 
-  // Create camera
   camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
-  camera.position.z = 30
+  camera.position.z = 35
 
-  // Create renderer
   const container = document.querySelector('.skull-container')
   if (!container) return
-
-  // Clear any existing canvas
-  while (container.firstChild) {
-    container.removeChild(container.firstChild)
-  }
 
   renderer = new THREE.WebGLRenderer({
     alpha: true,
     antialias: true,
   })
 
-  // Set size based on container
   const size = Math.min(container.clientWidth, container.clientHeight)
   renderer.setSize(size, size)
   renderer.setClearColor(0x000000, 0)
   container.appendChild(renderer.domElement)
 
-  // Create a simple test shape
-  const geometry = new THREE.IcosahedronGeometry(10, 1)
-  const material = new THREE.MeshPhongMaterial({
-    color: 0x9f7aea,
-    emissive: 0x44337a,
-    specular: 0xffffff,
-    shininess: 30,
-    transparent: true,
-    opacity: 0.9,
-    wireframe: true,
-  })
+  // Load skull model
+  const loader = new OBJLoader()
+  loader.load(
+    '/models/skull3d.obj',
+    (object) => {
+      skull = object
+      skull.scale.set(10, 10, 10)
 
-  skull = new THREE.Mesh(geometry, material)
-  scene.add(skull)
+      // Create bone-like material
+      const material = new THREE.MeshPhongMaterial({
+        color: 0xffffff,
+        emissive: 0x000000,
+        specular: 0x666666,
+        shininess: 10,
+        transparent: true,
+        opacity: 0.9,
+      })
+
+      // Add wireframe effect
+      object.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material = material
+          child.geometry.center()
+        }
+      })
+
+      scene.add(skull)
+      animate()
+    },
+    (xhr) => {
+      console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+    },
+    (error) => {
+      console.error('Error loading skull model:', error)
+    },
+  )
 
   // Add lights
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-  scene.add(ambientLight)
-
-  const pointLight = new THREE.PointLight(0x9f7aea, 2)
-  pointLight.position.set(20, 20, 20)
-  scene.add(pointLight)
-
-  // Start animation
-  animate()
+  const backLight = new THREE.PointLight(0x9f7aea, 2)
+  backLight.position.set(0, 0, -20)
+  const frontLight = new THREE.PointLight(0xffffff, 1)
+  frontLight.position.set(0, 0, 20)
+  scene.add(ambientLight, backLight, frontLight)
 }
 
 // Update animation function
