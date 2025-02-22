@@ -25,8 +25,16 @@ let menuTimeout = null
 // Add near the top of the script
 const modelLoadError = ref(false)
 
-// Add device detection
+// Update device detection to be reactive
 const isMobile = ref(window.innerWidth <= 768)
+
+// Add content sections data
+const sections = [
+  { title: 'Create', description: 'Build something extraordinary' },
+  { title: 'Innovate', description: 'Push the boundaries' },
+  { title: 'Transform', description: 'Change the game' },
+  { title: 'Evolve', description: 'Stay ahead of tomorrow' },
+]
 
 function initThreeJS() {
   // Create scene
@@ -355,6 +363,9 @@ function handleTouchStart(event) {
 // Update window resize handling
 function handleResize() {
   isMobile.value = window.innerWidth <= 768
+  if (!isMobile.value && !skull) {
+    initThreeJS()
+  }
 }
 </script>
 
@@ -388,29 +399,28 @@ function handleResize() {
       </nav>
     </header>
 
-    <!-- Only show skull on desktop -->
+    <!-- Only show skull and beams on desktop -->
     <template v-if="!isMobile">
       <div class="circuit-container"></div>
       <div class="skull-container">
         <!-- Three.js skull renders here -->
       </div>
+      <div class="beam-container"></div>
     </template>
 
-    <!-- Update content grid for mobile -->
+    <!-- Content grid with mobile optimization -->
     <div class="content-grid" :class="{ mobile: isMobile }">
       <div
         v-for="(section, index) in sections"
         :key="section.title"
         class="content-section"
         :class="[`section-${index + 1}`, { mobile: isMobile }]"
+        :style="{ '--index': index }"
       >
         <h2>{{ section.title }}</h2>
         <p>{{ section.description }}</p>
       </div>
     </div>
-
-    <!-- Only show beam container on desktop -->
-    <div v-if="!isMobile" class="beam-container"></div>
   </div>
 </template>
 
@@ -1123,14 +1133,10 @@ body {
     flex-direction: column;
     align-items: center;
     padding: 1rem;
-    overflow-y: auto;
-    height: 100vh;
+    min-height: 100vh;
     padding-top: 5rem;
-    background: radial-gradient(
-      circle at center,
-      rgba(159, 122, 234, 0.2) 0%,
-      rgba(0, 0, 0, 1) 70%
-    );
+    background: linear-gradient(135deg, rgba(159, 122, 234, 0.1) 0%, rgba(0, 0, 0, 0.95) 100%);
+    overflow-y: auto;
   }
 
   .content-section.mobile {
@@ -1138,35 +1144,89 @@ body {
     width: 90%;
     max-width: 350px;
     margin: 1rem 0;
-    transform: translateY(20px);
+    padding: 2rem;
     opacity: 0;
-    animation: slideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    backdrop-filter: blur(8px);
+    transform: translateX(-50px);
     background: rgba(107, 70, 193, 0.1);
     border: 1px solid rgba(159, 122, 234, 0.3);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    box-shadow:
+      0 4px 6px rgba(0, 0, 0, 0.1),
+      0 1px 3px rgba(0, 0, 0, 0.08);
   }
 
   .content-section.mobile.show {
-    animation-delay: calc(var(--index) * 0.2s);
+    animation: slideInMobile 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation-delay: calc(var(--index) * 0.15s);
   }
 
-  @keyframes slideIn {
-    from {
+  @keyframes slideInMobile {
+    0% {
       opacity: 0;
-      transform: translateY(40px);
+      transform: translateX(-50px);
     }
-    to {
+    100% {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateX(0);
     }
   }
 
-  /* Add mobile-specific hover effects */
+  .content-section.mobile:nth-child(even) {
+    transform: translateX(50px);
+  }
+
+  .content-section.mobile:nth-child(even).show {
+    animation-name: slideInMobileRight;
+  }
+
+  @keyframes slideInMobileRight {
+    0% {
+      opacity: 0;
+      transform: translateX(50px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
   .content-section.mobile:active {
     transform: scale(0.98);
     background: rgba(107, 70, 193, 0.2);
     border-color: var(--light-purple);
-    transition: all 0.3s ease;
+  }
+
+  .content-section.mobile h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(120deg, #fff, var(--light-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .content-section.mobile p {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  /* Add floating effect */
+  .content-section.mobile.show {
+    animation:
+      slideInMobile 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards,
+      float 3s ease-in-out infinite;
+    animation-delay: calc(var(--index) * 0.15s), 0.6s;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
   }
 
   /* Adjust skull container for mobile */
