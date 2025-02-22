@@ -22,6 +22,9 @@ const menuItems = [{ label: 'About' }, { label: 'Pricing' }, { label: 'Contact U
 // Add menu timeout handling
 let menuTimeout = null
 
+// Add near the top of the script
+const modelLoadError = ref(false)
+
 function initThreeJS() {
   // Create scene
   scene = new THREE.Scene()
@@ -51,7 +54,7 @@ function initThreeJS() {
   // Load skull model
   const loader = new OBJLoader()
   loader.load(
-    '/skull3d.obj',
+    '/models/skull3d.obj',
     (object) => {
       skull = object
       // Make skull larger
@@ -97,6 +100,7 @@ function initThreeJS() {
     },
     (error) => {
       console.error('Error loading skull model:', error)
+      modelLoadError.value = true
     },
   )
 }
