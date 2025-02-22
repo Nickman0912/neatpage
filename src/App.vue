@@ -51,58 +51,32 @@ function initThreeJS() {
   frontLight.position.set(0, 0, 10)
   scene.add(ambientLight, backLight, frontLight)
 
-  // Load skull model
-  const loader = new OBJLoader()
-  loader.load(
-    '/models/skull3d.obj',
-    (object) => {
-      skull = object
-      // Make skull larger
-      skull.scale.set(10, 10, 10)
+  // Create a basic skull shape instead of loading OBJ
+  const geometry = new THREE.BoxGeometry(10, 12, 15)
+  const material = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    emissive: 0x000000,
+    specular: 0x666666,
+    shininess: 10,
+    transparent: true,
+    opacity: 0.9,
+  })
 
-      // Create bone-like material
-      const material = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        emissive: 0x000000,
-        specular: 0x666666,
-        shininess: 10,
-        transparent: true,
-        opacity: 0.9,
-      })
+  skull = new THREE.Mesh(geometry, material)
 
-      // Create subtle wireframe
-      const wireframeMaterial = new THREE.LineBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.2,
-        linewidth: 1,
-      })
-
-      skull.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const wireframeGeometry = new THREE.WireframeGeometry(child.geometry)
-          const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial)
-
-          child.material = material
-          child.add(wireframe)
-          child.geometry.center()
-
-          // Update initial rotation to face forward
-          child.rotation.x = 0 // Changed from -Math.PI/2
-        }
-      })
-
-      scene.add(skull)
-      animate()
-    },
-    (xhr) => {
-      console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
-    },
-    (error) => {
-      console.error('Error loading skull model:', error)
-      modelLoadError.value = true
-    },
+  // Add wireframe
+  const wireframe = new THREE.LineSegments(
+    new THREE.WireframeGeometry(geometry),
+    new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.2,
+    }),
   )
+  skull.add(wireframe)
+
+  scene.add(skull)
+  animate()
 }
 
 function animate() {
