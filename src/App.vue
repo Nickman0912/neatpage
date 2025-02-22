@@ -51,7 +51,7 @@ function initThreeJS() {
   // Load skull model
   const loader = new OBJLoader()
   loader.load(
-    'src/assets/skull3d/skull3d.obj',
+    '/skull3d.obj',
     (object) => {
       skull = object
       // Make skull larger
