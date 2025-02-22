@@ -2,6 +2,7 @@
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
 import { onMounted, ref, onUnmounted } from 'vue'
+import { ShaderMaterial } from 'three'
 
 console.log('Three.js Version:', THREE.REVISION)
 
@@ -36,15 +37,86 @@ const sections = [
   { title: 'Evolve', description: 'Stay ahead of tomorrow' },
 ]
 
-function initThreeJS() {
-  scene = new THREE.Scene()
+// Add a reference to track the container
+let currentContainer = null
 
-  // Adjust camera position
+// Update the color variables at the top
+const COLORS = {
+  primary: '#0088ff', // Electric blue
+  dark: '#005299', // Darker blue
+  light: '#40a9ff', // Light blue
+  glow: '#00e5ff', // Cyan glow
+}
+
+// Update the shader code with more prominent swirls
+const energyShader = {
+  vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vPosition;
+    void main() {
+      vUv = uv;
+      vPosition = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float time;
+    varying vec2 vUv;
+    varying vec3 vPosition;
+
+    float noise(vec3 p) {
+      return sin(p.x * 15.0 + time) * // Increased frequency from 10.0 to 15.0
+             cos(p.y * 12.0 - time * 0.5) * // Increased frequency and speed
+             sin(p.z * 18.0 + time * 0.7); // Increased frequency and variation
+    }
+
+    void main() {
+      vec3 color = vec3(0.0, 0.53, 1.0);
+
+      // Create more intense swirling layers
+      float noise1 = noise(vPosition * 0.8); // Increased scale
+      float noise2 = noise(vPosition * 1.2 + vec3(time * 0.3)); // Faster movement
+      float noise3 = noise(vPosition * 1.6 - vec3(time * 0.4)); // More variation
+
+      // Combine noise layers with higher contrast
+      float finalNoise = (noise1 + noise2 + noise3) / 2.5; // Reduced division for more intensity
+
+      // Enhanced "thinking" pulses
+      float pulse1 = sin(time * 1.2) * 0.5 + 0.5; // Faster pulses
+      float pulse2 = sin(time * 1.8 + 2.0) * 0.5 + 0.5;
+      float pulse3 = sin(time * 0.9 + 4.0) * 0.5 + 0.5;
+
+      // More prominent synapses
+      float synapses = step(0.88, sin(vPosition.x * 25.0 + time) * // Increased frequency and lowered threshold
+                                sin(vPosition.y * 25.0 - time) *
+                                sin(vPosition.z * 25.0 + time * 0.8));
+
+      // Combine effects with higher intensity
+      float alpha = (finalNoise * 0.6 + 0.4) * // Increased base opacity
+                   mix(0.3, 0.6, (pulse1 + pulse2 + pulse3) / 3.0) +
+                   synapses * 0.7; // More prominent flashes
+
+      // Enhanced color variation
+      color = mix(color, vec3(0.2, 0.8, 1.0), finalNoise * 0.7); // More color contrast
+      color += vec3(0.2, 0.4, 0.8) * synapses; // Brighter flashes
+
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+}
+
+function initThreeJS() {
+  // Clean up existing scene and renderer
+  cleanupThreeJS()
+
+  scene = new THREE.Scene()
   camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
-  camera.position.z = 35
+  camera.position.z = 60
 
   const container = document.querySelector('.skull-container')
   if (!container) return
+
+  currentContainer = container
 
   renderer = new THREE.WebGLRenderer({
     alpha: true,
@@ -56,75 +128,161 @@ function initThreeJS() {
   renderer.setClearColor(0x000000, 0)
   container.appendChild(renderer.domElement)
 
-  // Load skull model
-  const loader = new OBJLoader()
-  loader.load(
-    '/models/skull3d.obj',
-    (object) => {
-      skull = object
-      skull.scale.set(10, 10, 10)
+  // Create larger complex sphere geometry with enhanced materials
+  const geometry = new THREE.IcosahedronGeometry(30, 2)
+  const material = new THREE.MeshPhongMaterial({
+    color: 0x0088ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.2,
+    wireframeLinewidth: 0.8,
+  })
 
-      // Create bone-like material
-      const material = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        emissive: 0x9f7aea,
-        specular: 0x666666,
-        shininess: 30,
-        transparent: true,
-        opacity: 0.9,
-      })
+  skull = new THREE.Mesh(geometry, material)
 
-      // Add material and center
-      object.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.material = material
-          child.geometry.center()
-        }
-      })
+  // Add inner sphere with glowing effect
+  const innerGeometry = new THREE.IcosahedronGeometry(28, 1)
+  const innerMaterial = new THREE.MeshPhongMaterial({
+    color: 0x00e5ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.15,
+    wireframeLinewidth: 0.8,
+  })
+  const innerSphere = new THREE.Mesh(innerGeometry, innerMaterial)
+  skull.add(innerSphere)
 
-      scene.add(skull)
-      animate()
+  // Add outer glow sphere
+  const outerGeometry = new THREE.IcosahedronGeometry(32, 1)
+  const outerMaterial = new THREE.MeshPhongMaterial({
+    color: 0x40a9ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.1,
+    wireframeLinewidth: 0.8,
+  })
+  const outerSphere = new THREE.Mesh(outerGeometry, outerMaterial)
+  skull.add(outerSphere)
+
+  // Add particle system for enhanced effect
+  const particlesGeometry = new THREE.BufferGeometry()
+  const particleCount = 200
+  const positions = new Float32Array(particleCount * 3)
+
+  for (let i = 0; i < particleCount * 3; i += 3) {
+    const radius = 35
+    const theta = Math.random() * Math.PI * 2
+    const phi = Math.acos(Math.random() * 2 - 1)
+
+    positions[i] = radius * Math.sin(phi) * Math.cos(theta)
+    positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta)
+    positions[i + 2] = radius * Math.cos(phi)
+  }
+
+  particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+
+  const particlesMaterial = new THREE.PointsMaterial({
+    color: 0x00e5ff,
+    size: 0.5,
+    transparent: true,
+    opacity: 0.6,
+    blending: THREE.AdditiveBlending,
+  })
+
+  const particles = new THREE.Points(particlesGeometry, particlesMaterial)
+  skull.add(particles)
+
+  // Create energy sphere
+  const energyGeometry = new THREE.IcosahedronGeometry(25, 2)
+  const energyMaterial = new ShaderMaterial({
+    vertexShader: energyShader.vertexShader,
+    fragmentShader: energyShader.fragmentShader,
+    uniforms: {
+      time: { value: 0 },
     },
-    null,
-    (error) => console.error('Error loading skull:', error),
-  )
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+  })
+  const energySphere = new THREE.Mesh(energyGeometry, energyMaterial)
+  skull.add(energySphere)
 
-  // Add enhanced lighting
+  scene.add(skull)
+
+  // Enhanced lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
   scene.add(ambientLight)
 
-  const backLight = new THREE.PointLight(0x9f7aea, 2)
-  backLight.position.set(0, 0, -20)
-  scene.add(backLight)
+  const pointLight1 = new THREE.PointLight(0x00e5ff, 2)
+  pointLight1.position.set(20, 20, 20)
+  scene.add(pointLight1)
 
-  const frontLight = new THREE.PointLight(0xffffff, 1)
-  frontLight.position.set(0, 0, 20)
-  scene.add(frontLight)
+  const pointLight2 = new THREE.PointLight(0x0088ff, 1)
+  pointLight2.position.set(-20, -20, -20)
+  scene.add(pointLight2)
+
+  // Add volumetric light effect
+  const volumetricLight = new THREE.SpotLight(0x00e5ff, 1)
+  volumetricLight.position.set(0, 30, 0)
+  volumetricLight.angle = Math.PI / 4
+  volumetricLight.penumbra = 0.5
+  scene.add(volumetricLight)
+
+  animate()
 }
 
-// Update animation function
+// Update the animation function to make the movement more dynamic
 function animate() {
   if (!renderer || !scene || !camera || !skull) return
-
   requestAnimationFrame(animate)
 
-  if (skull && !isMobile.value) {
-    skull.rotation.x += 0.01
-    skull.rotation.y += 0.01
+  // Update energy shader time with more dynamic variations
+  const energyMesh = skull.children[3]
+  if (energyMesh && energyMesh.material.uniforms) {
+    const baseSpeed = 0.015 // Increased base speed
+    const burstSpeed = Math.sin(Date.now() * 0.002) * 0.02 + 0.025 // More pronounced bursts
+    energyMesh.material.uniforms.time.value += baseSpeed + burstSpeed
+
+    // More pronounced rotation variations
+    energyMesh.rotation.x += Math.sin(Date.now() * 0.001) * 0.002
+    energyMesh.rotation.y += Math.cos(Date.now() * 0.0007) * 0.002
+  }
+
+  // Rotate particles in opposite direction for enhanced effect
+  if (skull.children[4]) {
+    // particles are now the fifth child
+    skull.children[4].rotation.y -= 0.001
+    skull.children[4].rotation.x -= 0.001
   }
 
   renderer.render(scene, camera)
 }
 
-// Clean up function
+// Update cleanup function
 function cleanupThreeJS() {
-  if (renderer) {
-    renderer.dispose()
-    const container = document.querySelector('.skull-container')
-    if (container && container.firstChild) {
-      container.removeChild(container.firstChild)
+  if (skull) {
+    scene?.remove(skull)
+    skull = null
+  }
+
+  if (scene) {
+    while (scene.children.length > 0) {
+      scene.remove(scene.children[0])
     }
   }
+
+  if (renderer) {
+    renderer.dispose()
+  }
+
+  if (currentContainer) {
+    while (currentContainer.firstChild) {
+      currentContainer.removeChild(currentContainer.firstChild)
+    }
+  }
+
+  scene = null
+  renderer = null
+  currentContainer = null
 }
 
 onMounted(() => {
@@ -143,34 +301,13 @@ onMounted(() => {
   menuDropdown?.addEventListener('mouseenter', clearMenuTimeout)
   menuDropdown?.addEventListener('mouseleave', startMenuTimeout)
 
-  const sections = document.querySelectorAll('.content-section')
-  sections.forEach((section) => {
-    let currentBeam = null
-
-    section.addEventListener('mouseenter', () => {
-      if (currentBeam) currentBeam.remove()
-      currentBeam = createBeam(section)
-    })
-
-    section.addEventListener('mouseleave', (event) => {
-      // Check if we're not entering another content section
-      const relatedTarget = event.relatedTarget
-      if (!relatedTarget?.closest('.content-section')) {
-        if (currentBeam) {
-          currentBeam.classList.add('fade-out')
-          setTimeout(() => currentBeam?.remove(), 300)
-          currentBeam = null
-        }
-      }
-    })
-  })
-
   document.addEventListener('touchstart', handleTouchStart)
   document.addEventListener('touchmove', (e) => handleTouchStart(e))
 })
 
 onUnmounted(() => {
   cleanupThreeJS()
+  window.removeEventListener('resize', handleResize)
 })
 
 function showContent() {
@@ -217,65 +354,6 @@ function createCircuits() {
       setTimeout(() => circuit.remove(), 200)
     }, 800)
   })
-}
-
-// Add beam tracking
-let activeBeam = null
-
-function createBeam(target) {
-  const existingBeams = document.querySelectorAll('.skull-beam')
-  existingBeams.forEach((beam) => beam.remove())
-
-  const beam = document.createElement('div')
-  beam.className = 'skull-beam'
-
-  // Get skull position
-  const skull = document.querySelector('.skull-container')
-  const skullRect = skull.getBoundingClientRect()
-  const skullCenter = {
-    x: skullRect.left + skullRect.width / 2,
-    y: skullRect.top + skullRect.height / 2,
-  }
-
-  // Get target position
-  const targetRect = target.getBoundingClientRect()
-  const targetCenter = {
-    x: targetRect.left + targetRect.width / 2,
-    y: targetRect.top + targetRect.height / 2,
-  }
-
-  // Calculate angle and distances
-  const angle = Math.atan2(targetCenter.y - skullCenter.y, targetCenter.x - skullCenter.x)
-  const skullRadius = 250
-  const length = Math.hypot(targetCenter.x - skullCenter.x, targetCenter.y - skullCenter.y)
-
-  // Calculate start position at skull edge
-  const startX = skullCenter.x + Math.cos(angle) * skullRadius
-  const startY = skullCenter.y + Math.sin(angle) * skullRadius
-
-  // Set beam properties
-  beam.style.setProperty('--beam-angle', `${angle}rad`)
-  beam.style.setProperty('--beam-length', `${length - skullRadius}px`)
-  beam.style.left = `${startX}px`
-  beam.style.top = `${startY}px`
-
-  // Add inner beam
-  const innerBeam = document.createElement('div')
-  innerBeam.className = 'skull-beam-inner'
-  beam.appendChild(innerBeam)
-
-  // Add to a fixed container instead of body
-  const beamContainer = document.querySelector('.beam-container') || createBeamContainer()
-  beamContainer.appendChild(beam)
-  return beam
-}
-
-// Add a dedicated beam container
-function createBeamContainer() {
-  const container = document.createElement('div')
-  container.className = 'beam-container'
-  document.body.appendChild(container)
-  return container
 }
 
 // Add intro animation sequence
@@ -376,29 +454,41 @@ function handleResize() {
   }
 }
 
-// Update mouse tracking for smoother movement
+// Update mouse tracking function
 function handleMouseMove(event) {
   if (!skull || isMobile.value) return
 
-  const container = document.querySelector('.skull-container')
-  const rect = container.getBoundingClientRect()
-  const centerX = rect.left + rect.width / 2
-  const centerY = rect.top + rect.height / 2
+  // Use viewport dimensions
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const centerX = viewportWidth / 2
+  const centerY = viewportHeight / 2
 
-  const offsetX = (event.clientX - centerX) / (window.innerWidth / 2)
-  const offsetY = (event.clientY - centerY) / (window.innerHeight / 2)
+  // Calculate normalized position (-1 to 1)
+  const x = (event.clientX - centerX) / (viewportWidth / 2)
+  const y = (event.clientY - centerY) / (viewportHeight / 2)
 
-  const targetRotationY = (offsetX * Math.PI) / 3
-  const targetRotationX = (offsetY * Math.PI) / 3
+  // Calculate rotation with more pronounced effect
+  const targetRotationX = y * (Math.PI / 4) // 45 degrees max, inverted Y axis
+  const targetRotationY = x * (Math.PI / 4) // 45 degrees max
 
-  // Smoother rotation
-  skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.05
-  skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.05
+  // Apply rotation with smoother easing
+  requestAnimationFrame(() => {
+    if (skull) {
+      skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.15
+      skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.15
+    }
+  })
 }
 </script>
 
 <template>
-  <div class="hero" @mousemove="!isMobile && handleMouseMove">
+  <div class="hero" @mousemove="handleMouseMove">
+    <!-- Add digital background elements -->
+    <div class="digital-background">
+      <div class="grid"></div>
+      <div class="digital-particles"></div>
+    </div>
     <div v-if="showIntro" class="intro-overlay">
       <div class="progress-arc top"></div>
       <div class="intro-text">
@@ -437,15 +527,15 @@ function handleMouseMove(event) {
           <h2>Create</h2>
           <p>Build something extraordinary</p>
         </div>
-        <div class="section-2 content-section" :style="{ '--rotate-angle': '3deg' }">
+        <div class="section-2 content-section" :style="{ '--rotate-angle': '5deg' }">
           <h2>Innovate</h2>
           <p>Push the boundaries</p>
         </div>
-        <div class="section-3 content-section" :style="{ '--rotate-angle': '2deg' }">
+        <div class="section-3 content-section" :style="{ '--rotate-angle': '-3deg' }">
           <h2>Transform</h2>
           <p>Change the game</p>
         </div>
-        <div class="section-4 content-section" :style="{ '--rotate-angle': '-3deg' }">
+        <div class="section-4 content-section" :style="{ '--rotate-angle': '3deg' }">
           <h2>Evolve</h2>
           <p>Stay ahead of tomorrow</p>
         </div>
@@ -478,9 +568,9 @@ function handleMouseMove(event) {
 }
 
 :root {
-  --primary-purple: #6b46c1;
-  --dark-purple: #44337a;
-  --light-purple: #9f7aea;
+  --primary-color: #0088ff;
+  --dark-color: #005299;
+  --light-color: #40a9ff;
 }
 
 html,
@@ -491,18 +581,16 @@ body {
   width: 100%;
   overflow: hidden;
   background: #000;
+  scroll-behavior: smooth;
 }
 
 .hero {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #000;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.8) 0%, #000 100%);
   z-index: 1;
   overflow: visible;
 }
@@ -516,7 +604,7 @@ body {
   font-size: 1.4rem;
   text-transform: uppercase;
   letter-spacing: 2px;
-  background-color: var(--primary-purple);
+  background-color: var(--primary-color);
   color: white;
   border: none;
   border-radius: 8px;
@@ -539,7 +627,7 @@ body {
 }
 
 .pulse-button:hover {
-  background-color: var(--dark-purple);
+  background-color: var(--dark-color);
 }
 
 .pulse-button:active {
@@ -571,11 +659,11 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-purple), var(--light-purple));
+  background: linear-gradient(90deg, var(--primary-color), var(--light-color));
   animation: spread 0.8s ease-out forwards;
   box-shadow:
-    0 0 10px var(--light-purple),
-    0 0 20px var(--primary-purple);
+    0 0 10px var(--light-color),
+    0 0 20px var(--primary-color);
   opacity: 0;
 }
 
@@ -584,7 +672,7 @@ body {
   left: var(--distance);
   width: 30%;
   height: 2px;
-  background: linear-gradient(90deg, var(--primary-purple), transparent);
+  background: linear-gradient(90deg, var(--primary-color), transparent);
   transform-origin: left center;
   transform: rotate(var(--branch-angle));
   animation: branch 0.8s ease-out var(--delay) forwards;
@@ -679,28 +767,19 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 800px;
-  height: 800px;
+  width: 600px;
+  height: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   opacity: 0;
   transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 80;
+  perspective: 1200px;
 }
 
 .skull-container::after {
-  content: '';
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(
-    circle at center,
-    rgba(159, 122, 234, 0.4) 0%,
-    rgba(159, 122, 234, 0.2) 30%,
-    rgba(159, 122, 234, 0.1) 50%,
-    transparent 70%
-  );
-  filter: blur(60px);
-  opacity: 0;
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: -1;
+  display: none;
 }
 
 .skull-container.show {
@@ -723,18 +802,23 @@ body {
 
 .content-section {
   position: absolute;
-  padding: 2rem;
-  width: 300px; /* Add fixed width */
-  background: rgba(107, 70, 193, 0.1);
-  border: 1px solid rgba(159, 122, 234, 0.3);
+  padding: 3rem;
+  width: 400px;
+  background: rgba(0, 136, 255, 0.1);
+  border: 1px solid rgba(64, 169, 255, 0.3);
   border-radius: 12px;
   backdrop-filter: blur(8px);
   opacity: 0;
-  transform: translateY(20px) rotate(var(--rotate-angle)); /* Combine transforms */
+  transform: translateY(20px) rotate(var(--rotate-angle));
   transition: all 0.3s ease;
   pointer-events: auto;
   cursor: pointer;
-  z-index: 90; /* Increased to be above beams */
+  z-index: 90;
+  box-shadow:
+    0 0 30px rgba(0, 136, 255, 0.1),
+    inset 0 0 20px rgba(0, 136, 255, 0.05);
+  position: relative;
+  overflow: hidden;
 }
 
 .content-section.show {
@@ -743,151 +827,51 @@ body {
 }
 
 .content-section h2 {
-  color: var(--light-purple);
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  color: var(--light-color);
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
 }
 
 .content-section p {
   color: white;
   opacity: 0.8;
+  font-size: 1.2rem;
+  line-height: 1.6;
 }
 
 /* Update section positions */
 .section-1 {
-  top: 15%;
+  top: 15vh;
   left: 15%;
   --rotate-angle: -5deg;
 }
 
 .section-2 {
-  top: 15%;
+  top: 15vh;
+  right: 15%;
+  --rotate-angle: 5deg;
+}
+
+.section-3 {
+  bottom: 15vh;
+  left: 15%;
+  --rotate-angle: -3deg;
+}
+
+.section-4 {
+  bottom: 15vh;
   right: 15%;
   --rotate-angle: 3deg;
 }
 
-.section-3 {
-  bottom: 15%;
-  left: 15%;
-  --rotate-angle: 2deg;
-}
-
-.section-4 {
-  bottom: 15%;
-  right: 15%;
-  --rotate-angle: -3deg;
-}
-
 /* Update hover effect */
 .content-section:hover {
-  transform: scale(1.05) rotate(0deg);
-  background: rgba(107, 70, 193, 0.3);
-  border-color: var(--light-purple);
+  transform: scale(1.03) rotate(0deg) !important;
+  background: rgba(0, 136, 255, 0.15);
+  border-color: var(--light-color);
   box-shadow:
-    0 0 40px rgba(159, 122, 234, 0.4),
-    0 0 80px rgba(159, 122, 234, 0.2);
-  transition: all 0.3s ease;
-}
-
-/* Update beam styles for better blending */
-.skull-beam {
-  position: absolute; /* Changed from fixed since container is fixed */
-  width: var(--beam-length);
-  height: 40px;
-  background: linear-gradient(
-    90deg,
-    rgba(159, 122, 234, 0.8) -20%,
-    /* Increased opacity and adjusted start */ rgba(159, 122, 234, 0.6) 10%,
-    rgba(159, 122, 234, 0.3) 50%,
-    transparent 100%
-  );
-  transform-origin: left center;
-  transform: rotate(var(--beam-angle));
-  filter: blur(20px);
-  pointer-events: none;
-  z-index: 85;
-  animation: beamIn 0.4s ease-out forwards;
-  box-shadow:
-    0 0 60px rgba(159, 122, 234, 0.4),
-    0 0 120px rgba(159, 122, 234, 0.2);
-  mix-blend-mode: screen;
-  opacity: 0.9; /* Increased from 0.8 */
-}
-
-.skull-beam-inner {
-  position: absolute;
-  width: 100%;
-  height: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: linear-gradient(
-    90deg,
-    rgba(159, 122, 234, 1) -10%,
-    rgba(159, 122, 234, 0.8) 20%,
-    rgba(159, 122, 234, 0.4) 60%,
-    transparent 100%
-  );
-  filter: blur(4px);
-  animation: beamPulse 2s ease-in-out infinite;
-}
-
-@keyframes beamPulse {
-  0%,
-  100% {
-    opacity: 0.8;
-    filter: blur(4px);
-    transform: translateY(-50%) scaleY(1);
-  }
-  50% {
-    opacity: 1;
-    filter: blur(2px);
-    transform: translateY(-50%) scaleY(1.2);
-  }
-}
-
-@keyframes beamIn {
-  from {
-    opacity: 0;
-    transform: rotate(var(--beam-angle)) scaleX(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: rotate(var(--beam-angle)) scaleX(1);
-  }
-}
-
-.skull-beam.fade-out {
-  animation: beamOut 0.3s ease-in forwards;
-}
-
-@keyframes beamOut {
-  from {
-    opacity: 1;
-    transform: rotate(var(--beam-angle)) scaleX(1);
-  }
-  to {
-    opacity: 0;
-    transform: rotate(var(--beam-angle)) scaleX(0.8);
-  }
-}
-
-/* Add pulsing effect to content sections when beam is active */
-.content-section:hover {
-  animation: contentPulse 2s ease-in-out infinite;
-}
-
-@keyframes contentPulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 30px rgba(159, 122, 234, 0.2),
-      0 0 60px rgba(159, 122, 234, 0.1);
-  }
-  50% {
-    box-shadow:
-      0 0 40px rgba(159, 122, 234, 0.4),
-      0 0 80px rgba(159, 122, 234, 0.2);
-  }
+    0 0 30px rgba(0, 136, 255, 0.2),
+    inset 0 0 20px rgba(0, 136, 255, 0.1);
 }
 
 /* Update intro styles */
@@ -909,9 +893,9 @@ body {
 
 .progress-arc {
   position: absolute;
-  width: 400px; /* Increased width */
-  height: 200px; /* Increased height */
-  border: 2px solid var(--light-purple);
+  width: 400px;
+  height: 200px;
+  border: 2px solid var(--light-color);
   opacity: 0.5;
   transform-origin: center;
   filter: drop-shadow(0 0 20px rgba(159, 122, 234, 0.2));
@@ -920,14 +904,14 @@ body {
 .progress-arc.top {
   border-radius: 200px 200px 0 0;
   border-bottom: none;
-  top: calc(50% - 280px); /* Increased distance */
+  top: calc(50% - 280px);
   animation: arcProgress 4s ease-in-out forwards;
 }
 
 .progress-arc.bottom {
   border-radius: 0 0 200px 200px;
   border-top: none;
-  bottom: calc(50% - 280px); /* Increased distance */
+  bottom: calc(50% - 280px);
   animation: arcProgress 4s ease-in-out forwards;
 }
 
@@ -963,7 +947,7 @@ body {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
   border-radius: 100px;
-  border: 1px solid rgba(159, 122, 234, 0.2);
+  border: 1px solid rgba(64, 169, 255, 0.2);
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   display: flex;
@@ -975,7 +959,7 @@ body {
   position: absolute;
   inset: -1px;
   border-radius: 100px;
-  background: linear-gradient(90deg, transparent, rgba(159, 122, 234, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(64, 169, 255, 0.2), transparent);
   opacity: 0;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -988,7 +972,7 @@ body {
 .site-header:hover .header-content {
   transform: scale(1.05);
   background: rgba(0, 0, 0, 0.5);
-  border-color: rgba(159, 122, 234, 0.4);
+  border-color: rgba(64, 169, 255, 0.4);
 }
 
 .site-header:hover .header-glow {
@@ -1001,15 +985,15 @@ body {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   font-weight: 500;
-  background: linear-gradient(90deg, #fff, var(--light-purple));
+  background: linear-gradient(90deg, #fff, var(--light-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 10px rgba(159, 122, 234, 0.3));
+  filter: drop-shadow(0 0 10px rgba(64, 169, 255, 0.3));
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .site-header:hover .brand {
-  filter: drop-shadow(0 0 15px rgba(159, 122, 234, 0.5));
+  filter: drop-shadow(0 0 15px rgba(64, 169, 255, 0.5));
   letter-spacing: 0.06em;
 }
 
@@ -1021,10 +1005,10 @@ body {
   color: white;
   letter-spacing: -0.02em;
   margin: 0;
-  background: linear-gradient(120deg, #fff, var(--light-purple));
+  background: linear-gradient(120deg, #fff, var(--light-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 30px rgba(159, 122, 234, 0.3));
+  filter: drop-shadow(0 0 30px rgba(64, 169, 255, 0.3));
   animation: textGlow 2s ease-in-out infinite;
 }
 
@@ -1041,21 +1025,13 @@ body {
 @keyframes textGlow {
   0%,
   100% {
-    filter: drop-shadow(0 0 30px rgba(159, 122, 234, 0.3));
+    filter: drop-shadow(0 0 30px rgba(64, 169, 255, 0.3));
     transform: scale(1);
   }
   50% {
-    filter: drop-shadow(0 0 50px rgba(159, 122, 234, 0.5));
+    filter: drop-shadow(0 0 50px rgba(64, 169, 255, 0.5));
     transform: scale(1.02);
   }
-}
-
-/* Add beam container styles */
-.beam-container {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 85;
 }
 
 /* Add menu icon styles */
@@ -1065,14 +1041,14 @@ body {
   gap: 4px;
   padding-left: 1rem;
   margin-left: 1rem;
-  border-left: 1px solid rgba(159, 122, 234, 0.2);
+  border-left: 1px solid rgba(64, 169, 255, 0.2);
 }
 
 .menu-icon span {
   display: block;
   width: 20px;
   height: 2px;
-  background: var(--light-purple);
+  background: var(--light-color);
   transition: all 0.3s ease;
 }
 
@@ -1097,7 +1073,7 @@ body {
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
   border-radius: 16px;
-  border: 1px solid rgba(159, 122, 234, 0.2);
+  border: 1px solid rgba(64, 169, 255, 0.2);
   padding: 0.5rem;
   min-width: 200px;
   opacity: 0;
@@ -1142,7 +1118,7 @@ body {
 .menu-highlight {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--primary-purple), transparent);
+  background: linear-gradient(90deg, var(--primary-color), transparent);
   opacity: 0;
   transition: all 0.3s ease;
 }
@@ -1153,12 +1129,12 @@ body {
 }
 
 .menu-item:hover {
-  color: var(--light-purple);
+  color: var(--light-color);
 }
 
 /* Update header hover states */
 .header-content.menu-active {
-  border-color: var(--light-purple);
+  border-color: var(--light-color);
   background: rgba(0, 0, 0, 0.6);
   border-radius: 24px;
 }
@@ -1172,7 +1148,7 @@ body {
     padding: 1rem;
     min-height: 100vh;
     padding-top: 5rem;
-    background: linear-gradient(135deg, rgba(159, 122, 234, 0.1) 0%, rgba(0, 0, 0, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(64, 169, 255, 0.1) 0%, rgba(0, 0, 0, 0.95) 100%);
     overflow-y: auto;
   }
 
@@ -1184,8 +1160,8 @@ body {
     padding: 2rem;
     opacity: 0;
     transform: translateX(-50px);
-    background: rgba(107, 70, 193, 0.1);
-    border: 1px solid rgba(159, 122, 234, 0.3);
+    background: rgba(0, 136, 255, 0.1);
+    border: 1px solid rgba(64, 169, 255, 0.3);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     box-shadow:
@@ -1230,14 +1206,14 @@ body {
 
   .content-section.mobile:active {
     transform: scale(0.98);
-    background: rgba(107, 70, 193, 0.2);
-    border-color: var(--light-purple);
+    background: rgba(0, 136, 255, 0.2);
+    border-color: var(--light-color);
   }
 
   .content-section.mobile h2 {
     font-size: 1.75rem;
     margin-bottom: 0.75rem;
-    background: linear-gradient(120deg, #fff, var(--light-purple));
+    background: linear-gradient(120deg, #fff, var(--light-color));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -1269,7 +1245,7 @@ body {
   /* Adjust skull container for mobile */
   .skull-container {
     width: 100vw;
-    height: 100vw; /* Make it square based on viewport width */
+    height: 100vw;
     max-width: 400px;
     max-height: 400px;
   }
@@ -1282,7 +1258,7 @@ body {
     padding: 1rem;
     overflow-y: auto;
     pointer-events: all;
-    padding-top: 6rem; /* Space for header */
+    padding-top: 6rem;
   }
 
   .content-section {
@@ -1347,15 +1323,6 @@ body {
   .menu-dropdown.show {
     transform: translateY(0);
   }
-
-  /* Adjust beams for mobile */
-  .skull-beam {
-    height: 20px;
-  }
-
-  .skull-beam-inner {
-    height: 4px;
-  }
 }
 
 /* Add tablet-specific adjustments */
@@ -1383,11 +1350,6 @@ body {
   .content-section:active {
     transform: scale(1.02);
   }
-
-  /* Optimize beam behavior for touch */
-  .skull-beam {
-    opacity: 0.7;
-  }
 }
 
 /* Desktop-specific styles */
@@ -1395,14 +1357,20 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  padding: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
 }
 
 .content-grid.desktop .content-section {
   position: absolute;
-  width: 300px;
-  padding: 2rem;
-  background: rgba(107, 70, 193, 0.1);
-  border: 1px solid rgba(159, 122, 234, 0.3);
+  width: 350px;
+  padding: 2.5rem;
+  margin: 1rem;
+  background: rgba(0, 136, 255, 0.1);
+  border: 1px solid rgba(64, 169, 255, 0.3);
   border-radius: 12px;
   backdrop-filter: blur(8px);
   transform: rotate(var(--rotate-angle));
@@ -1417,59 +1385,252 @@ body {
 
 /* Keep your existing section positioning */
 .section-1 {
-  top: 15%;
+  top: 15vh;
   left: 15%;
 }
 .section-2 {
-  top: 15%;
+  top: 15vh;
   right: 15%;
 }
 .section-3 {
-  bottom: 15%;
+  bottom: 15vh;
   left: 15%;
 }
 .section-4 {
-  bottom: 15%;
+  bottom: 15vh;
   right: 15%;
 }
 
-/* Update skull container styles */
-.skull-container {
+/* Add these new styles */
+.digital-background {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 800px;
-  height: 800px;
-  opacity: 0;
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 80;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.skull-container::after {
+.grid {
+  position: absolute;
+  inset: -100%;
+  background-image:
+    linear-gradient(to right, rgba(0, 136, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 136, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  transform: perspective(500px) rotateX(60deg);
+  animation: gridMove 20s linear infinite;
+}
+
+.digital-particles {
+  position: absolute;
+  inset: 0;
+}
+
+.digital-particles::before {
   content: '';
   position: absolute;
-  inset: -50%;
-  background: radial-gradient(
-    circle at center,
-    rgba(159, 122, 234, 0.4) 0%,
-    rgba(159, 122, 234, 0.2) 30%,
-    rgba(159, 122, 234, 0.1) 50%,
-    transparent 70%
-  );
-  filter: blur(60px);
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle at center, var(--light-color) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: particlesFade 3s linear infinite;
+  opacity: 0.3;
+}
+
+.digital-particles::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 30% 70%, var(--primary-color) 1px, transparent 1px),
+    radial-gradient(circle at 70% 30%, var(--glow) 1px, transparent 1px);
+  background-size:
+    100px 100px,
+    80px 80px;
+  animation: particlesMove 8s linear infinite;
+  opacity: 0.2;
+}
+
+@keyframes gridMove {
+  0% {
+    transform: perspective(500px) rotateX(60deg) translateY(0);
+  }
+  100% {
+    transform: perspective(500px) rotateX(60deg) translateY(50px);
+  }
+}
+
+@keyframes particlesFade {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes particlesMove {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-100px);
+  }
+}
+
+/* Update hero background */
+.hero {
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.8) 0%, #000 100%);
+}
+
+/* Add subtle glow to content sections */
+.content-section {
+  box-shadow:
+    0 0 30px rgba(0, 136, 255, 0.1),
+    inset 0 0 20px rgba(0, 136, 255, 0.05);
+}
+
+/* Add these new hover effects for content sections */
+.content-section {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Add glitch effect container */
+.content-section::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(90deg, transparent 33%, rgba(0, 136, 255, 0.3) 50%, transparent 67%);
+  background-size: 300% 100%;
   opacity: 0;
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
   z-index: -1;
+  animation: none;
 }
 
-.skull-container.show {
+/* Add distortion lines */
+.content-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    transparent 0%,
+    rgba(0, 136, 255, 0.1) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+/* Update hover effects */
+.content-section:hover {
+  transform: scale(1.03) rotate(0deg) !important;
+  background: rgba(0, 136, 255, 0.15);
+  border-color: var(--light-color);
+  box-shadow:
+    0 0 30px rgba(0, 136, 255, 0.2),
+    inset 0 0 20px rgba(0, 136, 255, 0.1);
+}
+
+.content-section:hover::before {
   opacity: 1;
+  animation: glitch 2s linear infinite;
 }
 
-.skull-container.show::after {
+.content-section:hover::after {
   opacity: 1;
+  animation: scanline 1.5s linear infinite;
 }
 
-/* Keep your existing mobile styles */
+/* Add text glitch effect on hover */
+.content-section:hover h2 {
+  animation: textGlitch 0.3s ease infinite;
+  text-shadow:
+    2px 2px var(--primary-color),
+    -2px -2px var(--glow);
+}
+
+/* Add glitch animations */
+@keyframes glitch {
+  0% {
+    background-position: 100% 50%;
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1px);
+  }
+  50% {
+    background-position: 0% 50%;
+    transform: translateX(1px);
+  }
+  75% {
+    transform: translateX(-1px);
+  }
+  100% {
+    background-position: 100% 50%;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes textGlitch {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1px) skewX(2deg);
+  }
+  75% {
+    transform: translateX(1px) skewX(-2deg);
+  }
+}
+
+/* Add distortion wave effect */
+.content-section:hover {
+  animation: distortionWave 2s ease infinite;
+}
+
+@keyframes distortionWave {
+  0%,
+  100% {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  }
+  25% {
+    clip-path: polygon(0% 0%, 100% 0%, 98% 100%, 2% 100%);
+  }
+  50% {
+    clip-path: polygon(2% 0%, 98% 0%, 100% 100%, 0% 100%);
+  }
+  75% {
+    clip-path: polygon(0% 0%, 100% 0%, 98% 100%, 2% 100%);
+  }
+}
+
+/* Update content section base styles */
+.content-section {
+  position: absolute;
+  width: 350px;
+  padding: 2.5rem;
+  margin: 1rem;
+  transform-origin: center center;
+}
+
+/* Ensure hover doesn't cause overflow */
+.content-section:hover {
+  z-index: 100;
+}
 </style>
