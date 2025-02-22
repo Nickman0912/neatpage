@@ -1,7 +1,7 @@
 <script setup>
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 console.log('Three.js Version:', THREE.REVISION)
 
@@ -41,91 +41,84 @@ function initThreeJS() {
   scene = new THREE.Scene()
 
   // Create camera
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-  camera.position.z = 35
+  camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
+  camera.position.z = 30
 
   // Create renderer
   const container = document.querySelector('.skull-container')
+  if (!container) return
+
+  // Clear any existing canvas
+  while (container.firstChild) {
+    container.removeChild(container.firstChild)
+  }
+
   renderer = new THREE.WebGLRenderer({
     alpha: true,
-    antialias: true, // Add antialiasing for smoother edges
+    antialias: true,
   })
-  renderer.setSize(800, 800)
+
+  // Set size based on container
+  const size = Math.min(container.clientWidth, container.clientHeight)
+  renderer.setSize(size, size)
   renderer.setClearColor(0x000000, 0)
   container.appendChild(renderer.domElement)
 
-  // Update lights for glow effect
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-  const backLight = new THREE.PointLight(0x9f7aea, 2)
-  backLight.position.set(0, 0, -10)
-  const frontLight = new THREE.PointLight(0xffffff, 1)
-  frontLight.position.set(0, 0, 10)
-  scene.add(ambientLight, backLight, frontLight)
-
-  // Create a basic skull shape instead of loading OBJ
-  const geometry = new THREE.BoxGeometry(10, 12, 15)
+  // Create a simple test shape
+  const geometry = new THREE.IcosahedronGeometry(10, 1)
   const material = new THREE.MeshPhongMaterial({
-    color: 0xffffff,
-    emissive: 0x000000,
-    specular: 0x666666,
-    shininess: 10,
+    color: 0x9f7aea,
+    emissive: 0x44337a,
+    specular: 0xffffff,
+    shininess: 30,
     transparent: true,
     opacity: 0.9,
+    wireframe: true,
   })
 
   skull = new THREE.Mesh(geometry, material)
-
-  // Add wireframe
-  const wireframe = new THREE.LineSegments(
-    new THREE.WireframeGeometry(geometry),
-    new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.2,
-    }),
-  )
-  skull.add(wireframe)
-
   scene.add(skull)
+
+  // Add lights
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+  scene.add(ambientLight)
+
+  const pointLight = new THREE.PointLight(0x9f7aea, 2)
+  pointLight.position.set(20, 20, 20)
+  scene.add(pointLight)
+
+  // Start animation
   animate()
 }
 
+// Update animation function
 function animate() {
+  if (!renderer || !scene || !camera || !skull) return
+
   requestAnimationFrame(animate)
 
-  if (skull) {
-    // Add subtle floating animation
-    skull.position.y = Math.sin(Date.now() * 0.001) * 0.1
+  if (skull && !isMobile.value) {
+    skull.rotation.x += 0.01
+    skull.rotation.y += 0.01
   }
 
   renderer.render(scene, camera)
 }
 
-// Adjust mouse tracking for smoother rotation
-function handleMouseMove(event) {
-  if (!skull) return
-
-  // Calculate mouse position relative to the skull container
-  const container = document.querySelector('.skull-container')
-  const rect = container.getBoundingClientRect()
-  const centerX = rect.left + rect.width / 2
-  const centerY = rect.top + rect.height / 2
-
-  // Calculate normalized offset from center
-  const offsetX = (event.clientX - centerX) / (window.innerWidth / 2)
-  const offsetY = (event.clientY - centerY) / (window.innerHeight / 2)
-
-  // Calculate target rotations (inverted Y axis)
-  const targetRotationY = (offsetX * Math.PI) / 4
-  const targetRotationX = (offsetY * Math.PI) / 4 // Removed negative sign to invert
-
-  // Apply smooth rotation
-  skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.1
-  skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.1
+// Clean up function
+function cleanupThreeJS() {
+  if (renderer) {
+    renderer.dispose()
+    const container = document.querySelector('.skull-container')
+    if (container && container.firstChild) {
+      container.removeChild(container.firstChild)
+    }
+  }
 }
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  handleResize() // Check mobile state first
   if (!isMobile.value) {
     initThreeJS()
   }
@@ -163,6 +156,10 @@ onMounted(() => {
 
   document.addEventListener('touchstart', handleTouchStart)
   document.addEventListener('touchmove', (e) => handleTouchStart(e))
+})
+
+onUnmounted(() => {
+  cleanupThreeJS()
 })
 
 function showContent() {
@@ -356,7 +353,7 @@ function handleClickOutside(event) {
 
 // Add touch event handling
 function handleTouchStart(event) {
-  if (!skull) return
+  if (!skull || isMobile.value) return
   handleMouseMove(event.touches[0])
 }
 
@@ -366,6 +363,29 @@ function handleResize() {
   if (!isMobile.value && !skull) {
     initThreeJS()
   }
+}
+
+// Add back mouse tracking
+function handleMouseMove(event) {
+  if (!skull || isMobile.value) return
+
+  // Calculate mouse position relative to the skull container
+  const container = document.querySelector('.skull-container')
+  const rect = container.getBoundingClientRect()
+  const centerX = rect.left + rect.width / 2
+  const centerY = rect.top + rect.height / 2
+
+  // Calculate normalized offset from center
+  const offsetX = (event.clientX - centerX) / (window.innerWidth / 2)
+  const offsetY = (event.clientY - centerY) / (window.innerHeight / 2)
+
+  // Calculate target rotations
+  const targetRotationY = (offsetX * Math.PI) / 4
+  const targetRotationX = (offsetY * Math.PI) / 4
+
+  // Apply smooth rotation
+  skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.1
+  skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.1
 }
 </script>
 
@@ -399,28 +419,45 @@ function handleResize() {
       </nav>
     </header>
 
-    <!-- Only show skull and beams on desktop -->
+    <!-- Desktop Layout -->
     <template v-if="!isMobile">
-      <div class="circuit-container"></div>
       <div class="skull-container">
         <!-- Three.js skull renders here -->
       </div>
-      <div class="beam-container"></div>
+      <div class="content-grid desktop">
+        <div class="section-1 content-section" :style="{ '--rotate-angle': '-5deg' }">
+          <h2>Create</h2>
+          <p>Build something extraordinary</p>
+        </div>
+        <div class="section-2 content-section" :style="{ '--rotate-angle': '3deg' }">
+          <h2>Innovate</h2>
+          <p>Push the boundaries</p>
+        </div>
+        <div class="section-3 content-section" :style="{ '--rotate-angle': '2deg' }">
+          <h2>Transform</h2>
+          <p>Change the game</p>
+        </div>
+        <div class="section-4 content-section" :style="{ '--rotate-angle': '-3deg' }">
+          <h2>Evolve</h2>
+          <p>Stay ahead of tomorrow</p>
+        </div>
+      </div>
     </template>
 
-    <!-- Content grid with mobile optimization -->
-    <div class="content-grid" :class="{ mobile: isMobile }">
-      <div
-        v-for="(section, index) in sections"
-        :key="section.title"
-        class="content-section"
-        :class="[`section-${index + 1}`, { mobile: isMobile }]"
-        :style="{ '--index': index }"
-      >
-        <h2>{{ section.title }}</h2>
-        <p>{{ section.description }}</p>
+    <!-- Mobile Layout -->
+    <template v-else>
+      <div class="content-grid mobile">
+        <div
+          v-for="(section, index) in sections"
+          :key="section.title"
+          class="content-section mobile"
+          :style="{ '--index': index }"
+        >
+          <h2>{{ section.title }}</h2>
+          <p>{{ section.description }}</p>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -630,48 +667,18 @@ body {
 }
 
 .skull-container {
-  position: absolute;
-  perspective: 1200px;
-  transform: translate(-50%, -50%) scale(0.6);
-  opacity: 0;
-  transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 80;
-  width: 800px;
-  height: 800px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: fixed;
   left: 50%;
   top: 50%;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -50%;
-    background: radial-gradient(
-      circle at center,
-      rgba(159, 122, 234, 0.6) 0%,
-      rgba(159, 122, 234, 0.4) 20%,
-      rgba(159, 122, 234, 0.2) 40%,
-      transparent 70%
-    );
-    filter: blur(60px);
-    opacity: 0;
-    transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: -1;
-    pointer-events: none;
-  }
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
 }
 
 .skull-container.show {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-
-  &::after {
-    opacity: 1;
-    filter: blur(40px);
-    inset: -25%;
-  }
 }
 
 .content-grid {
@@ -1352,4 +1359,65 @@ body {
     opacity: 0.7;
   }
 }
+
+/* Desktop-specific styles */
+.content-grid.desktop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.content-grid.desktop .content-section {
+  position: absolute;
+  width: 300px;
+  padding: 2rem;
+  background: rgba(107, 70, 193, 0.1);
+  border: 1px solid rgba(159, 122, 234, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  transform: rotate(var(--rotate-angle));
+  transition: all 0.3s ease;
+  pointer-events: auto;
+  opacity: 0;
+}
+
+.content-grid.desktop .content-section.show {
+  opacity: 1;
+}
+
+/* Keep your existing section positioning */
+.section-1 {
+  top: 15%;
+  left: 15%;
+}
+.section-2 {
+  top: 15%;
+  right: 15%;
+}
+.section-3 {
+  bottom: 15%;
+  left: 15%;
+}
+.section-4 {
+  bottom: 15%;
+  right: 15%;
+}
+
+/* Update skull container styles */
+.skull-container {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.skull-container.show {
+  opacity: 1;
+}
+
+/* Keep your existing mobile styles */
 </style>
