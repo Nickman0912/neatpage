@@ -39,6 +39,7 @@ const sections = [
 function initThreeJS() {
   scene = new THREE.Scene()
 
+  // Adjust camera position
   camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
   camera.position.z = 35
 
@@ -66,14 +67,14 @@ function initThreeJS() {
       // Create bone-like material
       const material = new THREE.MeshPhongMaterial({
         color: 0xffffff,
-        emissive: 0x000000,
+        emissive: 0x9f7aea,
         specular: 0x666666,
-        shininess: 10,
+        shininess: 30,
         transparent: true,
         opacity: 0.9,
       })
 
-      // Add wireframe effect
+      // Add material and center
       object.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.material = material
@@ -84,21 +85,21 @@ function initThreeJS() {
       scene.add(skull)
       animate()
     },
-    (xhr) => {
-      console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
-    },
-    (error) => {
-      console.error('Error loading skull model:', error)
-    },
+    null,
+    (error) => console.error('Error loading skull:', error),
   )
 
-  // Add lights
+  // Add enhanced lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+  scene.add(ambientLight)
+
   const backLight = new THREE.PointLight(0x9f7aea, 2)
   backLight.position.set(0, 0, -20)
+  scene.add(backLight)
+
   const frontLight = new THREE.PointLight(0xffffff, 1)
   frontLight.position.set(0, 0, 20)
-  scene.add(ambientLight, backLight, frontLight)
+  scene.add(frontLight)
 }
 
 // Update animation function
@@ -375,27 +376,24 @@ function handleResize() {
   }
 }
 
-// Add back mouse tracking
+// Update mouse tracking for smoother movement
 function handleMouseMove(event) {
   if (!skull || isMobile.value) return
 
-  // Calculate mouse position relative to the skull container
   const container = document.querySelector('.skull-container')
   const rect = container.getBoundingClientRect()
   const centerX = rect.left + rect.width / 2
   const centerY = rect.top + rect.height / 2
 
-  // Calculate normalized offset from center
   const offsetX = (event.clientX - centerX) / (window.innerWidth / 2)
   const offsetY = (event.clientY - centerY) / (window.innerHeight / 2)
 
-  // Calculate target rotations
-  const targetRotationY = (offsetX * Math.PI) / 4
-  const targetRotationX = (offsetY * Math.PI) / 4
+  const targetRotationY = (offsetX * Math.PI) / 3
+  const targetRotationX = (offsetY * Math.PI) / 3
 
-  // Apply smooth rotation
-  skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.1
-  skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.1
+  // Smoother rotation
+  skull.rotation.y += (targetRotationY - skull.rotation.y) * 0.05
+  skull.rotation.x += (targetRotationX - skull.rotation.x) * 0.05
 }
 </script>
 
@@ -681,13 +679,35 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
+  width: 800px;
+  height: 800px;
   opacity: 0;
-  transition: opacity 0.5s ease;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 80;
+}
+
+.skull-container::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(159, 122, 234, 0.4) 0%,
+    rgba(159, 122, 234, 0.2) 30%,
+    rgba(159, 122, 234, 0.1) 50%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
 }
 
 .skull-container.show {
+  opacity: 1;
+}
+
+.skull-container.show::after {
   opacity: 1;
 }
 
@@ -1419,13 +1439,35 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
+  width: 800px;
+  height: 800px;
   opacity: 0;
-  transition: opacity 0.5s ease;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 80;
+}
+
+.skull-container::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(159, 122, 234, 0.4) 0%,
+    rgba(159, 122, 234, 0.2) 30%,
+    rgba(159, 122, 234, 0.1) 50%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
 }
 
 .skull-container.show {
+  opacity: 1;
+}
+
+.skull-container.show::after {
   opacity: 1;
 }
 
