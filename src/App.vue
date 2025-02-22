@@ -1435,6 +1435,22 @@ body {
   background-size: 50px 50px;
   animation: particlesFade 3s linear infinite;
   opacity: 0.3;
+  mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.8) 45%,
+    rgba(0, 0, 0, 0.4) 60%,
+    rgba(0, 0, 0, 0) 80%
+  );
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.8) 45%,
+    rgba(0, 0, 0, 0.4) 60%,
+    rgba(0, 0, 0, 0) 80%
+  );
 }
 
 .digital-particles::after {
@@ -1450,6 +1466,22 @@ body {
     80px 80px;
   animation: particlesMove 8s linear infinite;
   opacity: 0.2;
+  mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 25%,
+    rgba(0, 0, 0, 0.8) 40%,
+    rgba(0, 0, 0, 0.4) 55%,
+    rgba(0, 0, 0, 0) 75%
+  );
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 25%,
+    rgba(0, 0, 0, 0.8) 40%,
+    rgba(0, 0, 0, 0.4) 55%,
+    rgba(0, 0, 0, 0) 75%
+  );
 }
 
 @keyframes gridMove {
