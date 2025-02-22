@@ -146,6 +146,9 @@ onMounted(() => {
       }
     })
   })
+
+  document.addEventListener('touchstart', handleTouchStart)
+  document.addEventListener('touchmove', (e) => handleTouchStart(e))
 })
 
 function showContent() {
@@ -335,6 +338,12 @@ function handleClickOutside(event) {
   if (isMenuOpen.value && header && !header.contains(event.target)) {
     isMenuOpen.value = false
   }
+}
+
+// Add touch event handling
+function handleTouchStart(event) {
+  if (!skull) return
+  handleMouseMove(event.touches[0])
 }
 </script>
 
@@ -1101,5 +1110,131 @@ body {
   border-color: var(--light-purple);
   background: rgba(0, 0, 0, 0.6);
   border-radius: 24px;
+}
+
+/* Add responsive styles */
+@media (max-width: 768px) {
+  /* Adjust skull container for mobile */
+  .skull-container {
+    width: 100vw;
+    height: 100vw; /* Make it square based on viewport width */
+    max-width: 400px;
+    max-height: 400px;
+  }
+
+  /* Adjust content grid layout */
+  .content-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    overflow-y: auto;
+    pointer-events: all;
+    padding-top: 6rem; /* Space for header */
+  }
+
+  .content-section {
+    position: relative;
+    top: unset;
+    left: unset;
+    right: unset;
+    bottom: unset;
+    width: 90%;
+    max-width: 350px;
+    margin: 1rem 0;
+    transform: translateY(20px);
+    --rotate-angle: 0deg;
+  }
+
+  /* Adjust intro text */
+  .intro-text .brand {
+    font-size: 3rem;
+  }
+
+  .intro-text .welcome {
+    font-size: 1rem;
+  }
+
+  /* Adjust progress arcs */
+  .progress-arc {
+    width: 280px;
+    height: 140px;
+  }
+
+  .progress-arc.top {
+    top: calc(50% - 200px);
+  }
+
+  .progress-arc.bottom {
+    bottom: calc(50% - 200px);
+  }
+
+  /* Adjust header for mobile */
+  .site-header {
+    width: 90%;
+    top: 1rem;
+  }
+
+  .header-content {
+    width: 100%;
+    padding: 0.5rem 1rem;
+  }
+
+  .site-header .brand {
+    font-size: 1.25rem;
+  }
+
+  /* Adjust menu dropdown */
+  .menu-dropdown {
+    width: 100%;
+    left: 0;
+    transform: translateY(-10px);
+    border-radius: 12px;
+  }
+
+  .menu-dropdown.show {
+    transform: translateY(0);
+  }
+
+  /* Adjust beams for mobile */
+  .skull-beam {
+    height: 20px;
+  }
+
+  .skull-beam-inner {
+    height: 4px;
+  }
+}
+
+/* Add tablet-specific adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .skull-container {
+    width: 600px;
+    height: 600px;
+  }
+
+  .content-section {
+    width: 250px;
+  }
+
+  .intro-text .brand {
+    font-size: 4rem;
+  }
+}
+
+/* Add touch device optimizations */
+@media (hover: none) {
+  .content-section {
+    transition: transform 0.3s ease;
+  }
+
+  .content-section:active {
+    transform: scale(1.02);
+  }
+
+  /* Optimize beam behavior for touch */
+  .skull-beam {
+    opacity: 0.7;
+  }
 }
 </style>
